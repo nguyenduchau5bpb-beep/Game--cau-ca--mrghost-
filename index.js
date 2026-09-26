@@ -10,7 +10,7 @@ const {
 } = require('discord.js');
 
 const app = express();
-app.get('/', (req, res) => res.send('🚀 ULTIMATE V16 SUPREME MANAGEMENT BOT IS ONLINE!'));
+app.get('/', (req, res) => res.send('🚀 ULTIMATE V20.0 - 1000 SPECIES EDITION IS ONLINE!'));
 app.listen(process.env.PORT || 3000);
 
 const PREFIX = '!';
@@ -24,7 +24,7 @@ const client = new Client({
     ]
 });
 
-const userData = {};
+let userData = {};
 const blacklist = new Set();
 const mutedUsers = new Set();
 let globalServerMultiplier = 1.0;
@@ -36,10 +36,9 @@ function getUser(id) {
             shells: 0,
             xp: 0,
             level: 1,
-            totalCaught: 0,
-            rod: 1, boat: 1, bait: 1, weapon: 1, armor: 1, accessory: 1, lake: 1,
-            isFishing: false, fishStartTime: 0,
-            inventoryFresh: {}, inventoryCooked: {}, lastDaily: 0
+            rod: 1, boat: 1, bait: 1, weapon: 1, armor: 1, accessory: 1,
+            lastDaily: 0,
+            fishBag: [] // Kho chứa từng con cá
         };
     }
     return userData[id];
@@ -48,124 +47,70 @@ function getUser(id) {
 function addXP(p, amount, channel, user) {
     p.xp += Math.floor(amount * globalServerMultiplier);
     let leveledUp = false;
-    let oldLevel = p.level;
-
     while (p.xp >= p.level * 300) {
         p.xp -= p.level * 300;
         p.level++;
         leveledUp = true;
     }
-
     if (leveledUp && channel) {
-        channel.send(`🎊 Chúc mừng **${user.username}** đã thăng lên **Level ${p.level}**!`);
+        channel.send(`🎊 Chúc mừng **${user.username}** đã thăng lên **Level ${p.level}**! Tăng sát thương chém Boss!`);
     }
 }
 
-function createProgressBar(current, max, size = 10) {
-    const percentage = Math.max(0, Math.min(1, current / max));
-    const progress = Math.round(size * percentage);
-    return '█'.repeat(progress) + '░'.repeat(size - progress) + ` ${Math.floor(percentage * 100)}%`;
+// ==========================================
+// 🐟 THUẬT TOÁN GENERATE 1,000+ LOẠI CÁ
+// ==========================================
+const FISH_PREFIXES = ['Biển Sâu', 'Băng Giá', 'Hỏa Ngục', 'Bão Tố', 'Cổ Đại', 'Hoàng Kim', 'Huyết Tộc', 'Thần Thoại', 'Bóng Đêm', 'Ánh Sáng', 'Vẫn Thạch', 'Tử Cấm', 'Huyền Thoại', 'Tinh Tú', 'Hắc Sâm'];
+const FISH_BASE_NAMES = ['Cá Chép', 'Cá Mập', 'Cá Rồng', 'Cá Ngừ', 'Cá Voi', 'Cá Vược', 'Cá Hồi', 'Cá Đuối', 'Cá Hố', 'Cá Chim', 'Cá Thu', 'Cá Cương', 'Cá La Hán', 'Cá Kiếm', 'Cá Hải Tượng', 'Cá Sấu Biển', 'Cá Bơn', 'Cá Hề', 'Cá Mút Đá', 'Cá Thần Tiên'];
+const FISH_SUFFIXES = ['Bạo Vương', 'Thánh Thú', 'U Linh', 'Chúa Tể', 'Thần Trùng', 'Thiên Vương', 'Hải Quy', 'Yêu Ma', 'Thần Long', 'Huyết Biển'];
+
+// Tạo ngẫu nhiên 1 loài cá trong danh sách 1,000+ cá
+function catchRandomFish() {
+    const pFixed = FISH_PREFIXES[Math.floor(Math.random() * FISH_PREFIXES.length)];
+    const bFixed = FISH_BASE_NAMES[Math.floor(Math.random() * FISH_BASE_NAMES.length)];
+    const sFixed = FISH_SUFFIXES[Math.floor(Math.random() * FISH_SUFFIXES.length)];
+    const fishName = `${bFixed} ${pFixed}${sFixed}`;
+
+    const rand = Math.random();
+    let rarity = 'D';
+    let value = 200;
+
+    if (rand < 0.01) { rarity = 'SSS'; value = 50000; }      // 1% Cá Siêu Thần Thoại
+    else if (rand < 0.05) { rarity = 'SS'; value = 15000; }  // 4% Cá Cực Hiếm
+    else if (rand < 0.15) { rarity = 'S'; value = 5000; }    // 10% Cá Hiếm
+    else if (rand < 0.35) { rarity = 'A'; value = 2000; }    // 20% Cá Cao Cấp
+    else if (rand < 0.65) { rarity = 'B'; value = 1000; }    // 30% Cá Trung Cấp
+    else if (rand < 0.85) { rarity = 'C'; value = 500; }     // 20% Cá Thường
+    else { rarity = 'D'; value = 200; }                      // 15% Cá Rác
+
+    return { name: fishName, rarity: rarity, price: value };
 }
 
-// KHỞI TẠO DỮ LIỆU
-const RODS = {}; for (let i = 1; i <= 40; i++) RODS[i] = { id: i, name: `Cần Cấp ${i} 🎣`, priceXu: i * 3000, priceShell: i >= 30 ? (i - 29) * 500 : 0, luck: i * 3, reqLevel: Math.ceil(i / 2) };
-const BOATS = {}; for (let i = 1; i <= 40; i++) BOATS[i] = { id: i, name: `Thuyền ${i} ⛵`, priceXu: i * 4000, priceShell: i >= 25 ? (i - 24) * 600 : 0, capacityBonus: i * 2 };
-const BAITS = {}; for (let i = 1; i <= 40; i++) BAITS[i] = { id: i, name: `Mồi Thần ${i} 🐛`, priceXu: i * 1500, priceShell: i >= 30 ? (i - 29) * 300 : 0 };
-const WEAPONS = {}; for (let i = 1; i <= 20; i++) WEAPONS[i] = { id: i, name: `Vũ Khí Cấp ${i} ⚔️`, priceXu: i * 6000, priceShell: i * 80, damage: i * 400 };
-const ARMORS = {}; for (let i = 1; i <= 20; i++) ARMORS[i] = { id: i, name: `Giáp Boss Cấp ${i} 🛡️`, priceXu: i * 5000, priceShell: i * 60, def: i * 150 };
-const ACCESSORIES = {}; for (let i = 1; i <= 20; i++) ACCESSORIES[i] = { id: i, name: `Nhẫn Rồng Cấp ${i} 💍`, priceXu: i * 4500, priceShell: i * 50, critDmg: i * 100 };
+// TRANG BỊ
+const RODS = {}; for (let i = 1; i <= 40; i++) RODS[i] = { id: i, name: `Cần Cấp ${i} 🎣` };
+const WEAPONS = {}; for (let i = 1; i <= 20; i++) WEAPONS[i] = { id: i, name: `Vũ Khí Cấp ${i} ⚔️`, damage: i * 400 };
 
+// BOSS SERVER
 let bossLevel = 1;
 function createBoss(level) {
-    const bossNames = ['Hai Tac Ban Ca', 'Bach Tuoc Quy', 'Ca Map Megalodon', 'Rong Bien Khong Lo', 'Thuy Quai Leviathan', 'Quy Vuong Bien Sau'];
-    const maxHp = level * 15000;
+    const bossNames = ['Hải Tặc Bắn Cá', 'Bạch Tuộc Quỷ', 'Cá Mập Megalodon', 'Rồng Biển Khổng Lồ', 'Thủy Quái Leviathan', 'Quỷ Vương Biển Sâu'];
+    const maxHp = 2000 + (level - 1) * 6000;
     const nameIndex = (level - 1) % bossNames.length;
     return {
-        level: level,
-        name: `${bossNames[nameIndex]} (Cap${level})`,
+        level: level, name: `${bossNames[nameIndex]} (Cấp ${level})`,
         maxHp: maxHp, hp: maxHp,
-        rewardXu: level * 30000, rewardShell: level * 600, rewardXP: level * 1200,
+        rewardXu: level * 20000, rewardShell: level * 400, rewardXP: level * 1000,
         img: 'https://media.giphy.com/media/26FmQ6EOvLxp6cWyY/giphy.gif'
     };
 }
 let currentBoss = createBoss(bossLevel);
 
-const FISH_TYPES = [
-    { name: 'Cá Rác 👞', price: 20, xp: 10, chance: 30, emoji: '👞' },
-    { name: 'Cá Cơm 🐟', price: 50, xp: 20, chance: 25, emoji: '🐟' },
-    { name: 'Cá Mập 🦈', price: 2000, xp: 400, chance: 5, emoji: '🦈' },
-    { name: 'Thủy Quái Leviathan 🐲', price: 60000, xp: 6000, chance: 0.5, emoji: '🐲' }
-];
-
-function generateShopEmbed(type, page) {
-    const itemsPerPage = 8;
-    let items = RODS, title = '🎣 SHOP CẦN CÂU (1-40)';
-    if (type === 'boat') { items = BOATS; title = '⛵ SHOP THUYỀN CÂU (1-40)'; }
-    if (type === 'bait') { items = BAITS; title = '🐛 SHOP MỒI CÂU (1-40)'; }
-    if (type === 'weapon') { items = WEAPONS; title = '⚔️ SHOP VŨ KHÍ (1-20)'; }
-    if (type === 'armor') { items = ARMORS; title = '🛡️ SHOP GIÁP BOSS (1-20)'; }
-    if (type === 'acc') { items = ACCESSORIES; title = '💍 SHOP PHỤ KIỆN (1-20)'; }
-
-    const totalKeys = Object.keys(items);
-    const maxPages = Math.ceil(totalKeys.length / itemsPerPage);
-    page = Math.max(1, Math.min(page, maxPages));
-    const start = (page - 1) * itemsPerPage;
-    const currentKeys = totalKeys.slice(start, start + itemsPerPage);
-
-    let text = `**Trang ${page} /${maxPages}**\n\n`;
-    currentKeys.forEach(k => {
-        const item = items[k];
-        text += `• **ID ${item.id}**:${item.name}\n  └ Giá: \`${item.priceXu.toLocaleString()} Xu\` + \`${item.priceShell.toLocaleString()} 🦪 Sò\`\n`;
-    });
-
-    text += `\n👉 *Cách trang bị nhanh: \`!trangbi c1\`, \`!trangbi v5\`, \`!trangbi g2\`, \`!trangbi p3\`*`;
-
-    const embed = new EmbedBuilder().setColor('#f39c12').setTitle(title).setDescription(text);
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`shop_${type}_${page - 1}`).setLabel('⏪ Trang trước').setStyle(ButtonStyle.Primary).setDisabled(page === 1),
-        new ButtonBuilder().setCustomId(`shop_${type}_${page + 1}`).setLabel('Trang sau ⏩').setStyle(ButtonStyle.Primary).setDisabled(page === maxPages)
-    );
-    return { embeds: [embed], components: [row] };
-}
-
-function generateControlPanel(user, p) {
-    const embed = new EmbedBuilder()
-        .setColor('#00ffff')
-        .setTitle(`🎮 BẢNG ĐIỀU KHIỂN VIP V16 - ${user.username}`)
-        .setDescription(
-            `🪙 **Xu:** \`${p.balance.toLocaleString()}\` | 🦪 **Sò:** \`${p.shells.toLocaleString()}\` | ⭐ **Level:** \`${p.level}\` (${p.xp} XP)\n` +
-            `🔥 **Hệ số Event Server:** \`x${globalServerMultiplier}\` Bonus!\n` +
-            `🎣 **Cần:** ${RODS[p.rod].name} \vert{} ⛵ **Thuyền:** ${BOATS[p.boat].name}\n` +
-            `⚔️ **Vũ khí:** ${WEAPONS[p.weapon].name} \vert{} 🛡️ **Giáp:** ${ARMORS[p.armor].name}\n` +
-            `💍 **Phụ kiện:** ${ACCESSORIES[p.accessory].name}\n\n` +
-            `👾 **Boss Server:** Cấp ${currentBoss.level} (${currentBoss.hp}/${currentBoss.maxHp} HP)\n` +
-            `👇 *Nhấn các nút bấm bên dưới để thao tác:*`
-        )
-        .setThumbnail(user.displayAvatarURL());
-
-    const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('act_start').setLabel('🎣 Thả Cần').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId('act_stop').setLabel('🛑 Giật Cần').setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId('act_chebien').setLabel('🍳 Chế Biến').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('act_banhet').setLabel('💰 Bán Tất Cả').setStyle(ButtonStyle.Success)
-    );
-
-    const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('act_danhboss').setLabel('⚔️ Đánh Boss').setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId('act_khoca').setLabel('🎒 Kho Đồ').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('act_daily').setLabel('🎁 Điểm Danh').setStyle(ButtonStyle.Primary)
-    );
-
-    return { embeds: [embed], components: [row1, row2] };
-}
-
-client.on('ready', () => console.log(`✅ Ultimate V16 Supreme Management Bot Ready: ${client.user.tag}`));
+client.on('ready', () => console.log(`✅ ULTIMATE V20.0 READY: ${client.user.tag}`));
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
     const user = message.author;
-
     if (blacklist.has(user.id)) return message.reply('⛔ **BẠN ĐÃ BỊ CẤM KHỎI HỆ THỐNG!**');
     if (mutedUsers.has(user.id)) return message.reply('🔇 Bạn đang bị khóa thao tác!');
 
@@ -173,138 +118,239 @@ client.on('messageCreate', async (message) => {
     const command = args.shift().toLowerCase();
     const p = getUser(user.id);
 
-    // LỆNH CHỦ BOT
-    if (['godmode', 'buffall', 'setxu', 'setso', 'banbot', 'unbanbot', 'event', 'giveca', 'clearca', 'setbosslevel', 'killboss', 'system', 'eval'].includes(command)) {
-        if (user.id !== BOT_OWNER_ID) return message.reply('⛔ **LỆNH CẤM!** Dành riêng cho Chủ Bot!');
-        const targetUser = message.mentions.users.first();
-        const targetP = targetUser ? getUser(targetUser.id) : null;
-
-        if (command === 'godmode') {
-            p.balance = 999999999; p.shells = 999999999;
-            p.rod = 40; p.boat = 40; p.bait = 40; p.weapon = 20; p.armor = 20; p.accessory = 20; p.level = 100;
-            return message.reply('⚡ **[GOD MODE ACTIVATED]** Nhận Full Đồ Max Cấp & 999,999,999 Xu/Sò!');
-        }
-
-        if (command === 'banbot' && targetUser) { blacklist.add(targetUser.id); return message.reply(`⛔ Đã BAN **${targetUser.username}**!`); }
-        if (command === 'unbanbot' && targetUser) { blacklist.delete(targetUser.id); return message.reply(`✅ Đã UNBAN cho **${targetUser.username}**!`); }
-        if (command === 'event') { globalServerMultiplier = parseFloat(args[0]) || 1.0; return message.reply(`🎉 Kích hoạt **EVENT X${globalServerMultiplier} SERVER**!`); }
-        if (command === 'buffall') { const xu = parseInt(args[0]) || 0, so = parseInt(args[1]) || 0; Object.keys(userData).forEach(id => { userData[id].balance += xu; userData[id].shells += so; }); return message.reply(`🎉 Đã bơm tiền cho TOÀN BỘ server!`); }
-        if (command === 'setxu' && targetP) { targetP.balance = parseInt(args[1]) || 0; return message.reply(`🔥 Set Xu thành công!`); }
-        if (command === 'setso' && targetP) { targetP.shells = parseInt(args[1]) || 0; return message.reply(`🔥 Set Sò thành công!`); }
-        if (command === 'setbosslevel') { bossLevel = Math.max(1, parseInt(args[0]) || 1); currentBoss = createBoss(bossLevel); return message.reply(`🔥 Nhảy Boss Cấp ${bossLevel}!`); }
-        if (command === 'killboss') { bossLevel++; currentBoss = createBoss(bossLevel); return message.reply(`⚡ Kết liễu Boss! Boss mới: **${currentBoss.name}**!`); }
-        if (command === 'system') return message.reply(`💻 RAM: \`${(process.memoryUsage().heapUsed/1024/1024).toFixed(2)} MB\` | Active Users: \`${Object.keys(userData).length}\``);
-        if (command === 'eval') { try { return message.reply(`\`\`\`javascript\n${eval(args.join(' '))}\n\`\`\``); } catch (e) { return message.reply(`❌ Lỗi: ${e.message}`); } }
-    }
-
-    // LỆNH ADMIN MÁY CHỦ
-    if (['congxu', 'truxu', 'congso', 'truso', 'setlevel', 'resetboss', 'clearuser', 'muteplayer', 'unmuteplayer', 'soica'].includes(command)) {
-        if (!message.member.permissions.has(PermissionFlagsBits.Administrator) && user.id !== BOT_OWNER_ID) return;
-        const targetUser = message.mentions.users.first();
-        const targetP = targetUser ? getUser(targetUser.id) : null;
-
-        if (command === 'muteplayer' && targetUser) { mutedUsers.add(targetUser.id); return message.reply(`🔇 Đã khóa thao tác **${targetUser.username}**!`); }
-        if (command === 'unmuteplayer' && targetUser) { mutedUsers.delete(targetUser.id); return message.reply(`🔊 Đã mở khóa cho **${targetUser.username}**!`); }
-        if (command === 'congxu' && targetP) { targetP.balance += parseInt(args[1]) || 0; return message.reply(`✅ Đã cộng Xu!`); }
-        if (command === 'congso' && targetP) { targetP.shells += parseInt(args[1]) || 0; return message.reply(`✅ Đã cộng Sò!`); }
-        if (command === 'setlevel' && targetP) { targetP.level = parseInt(args[1]) || 1; return message.reply(`✅ Đã chỉnh Level!`); }
-        if (command === 'resetboss') { bossLevel = 1; currentBoss = createBoss(1); return message.reply('✅ Reset Boss Cấp 1!'); }
-        if (command === 'clearuser' && targetUser) { delete userData[targetUser.id]; return message.reply(`✅ Đã xóa user!`); }
-    }
-
-    // TRẠNG BỊ NHANH
-    if (command === 'trangbi') {
-        const rawCode = (args[0] || '').toLowerCase(), typeChar = rawCode.charAt(0), idNum = parseInt(rawCode.slice(1));
-        if (isNaN(idNum)) return message.reply('❌ Dùng: `!trangbi c1`, `!trangbi v5`, `!trangbi g2`, `!trangbi p3`');
-
-        if (typeChar === 'c' && RODS[idNum]) { p.rod = idNum; return message.reply(`🎉 Đã mặc **${RODS[idNum].name}**!`); }
-        if (typeChar === 'v' && WEAPONS[idNum]) { p.weapon = idNum; return message.reply(`🎉 Đã mặc **${WEAPONS[idNum].name}**!`); }
-        if (typeChar === 'g' && ARMORS[idNum]) { p.armor = idNum; return message.reply(`🎉 Đã mặc **${ARMORS[idNum].name}**!`); }
-        if (typeChar === 'p' && ACCESSORIES[idNum]) { p.accessory = idNum; return message.reply(`🎉 Đã mặc **${ACCESSORIES[idNum].name}**!`); }
-        return message.reply('❌ Mã trang bị không đúng!');
-    }
-
-    // GAME THƯỜNG
-    if (command === 'menu' || command === 'dashboard') return message.channel.send(generateControlPanel(user, p));
-    if (command === 'top' || command === 'bxh') {
-        const sorted = Object.keys(userData).map(id => ({ id, ...userData[id] })).sort((a, b) => b.balance - a.balance).slice(0, 5);
-        let txt = '🏆 **TOP 5 ĐẠI GIA SERVER**\n\n';
-        sorted.forEach((u, i) => { txt += `**#${i + 1}** <@${u.id}> - \`${u.balance.toLocaleString()} Xu\` | \`${u.shells.toLocaleString()} 🦪 Sò\` (Lv ${u.level})\n`; });
-        return message.channel.send({ embeds: [new EmbedBuilder().setColor('#f1c40f').setTitle('📊 BẢNG XẾP HẠNG SERVER').setDescription(txt)] });
-    }
-
-    if (command === 'shoprod') return message.channel.send(generateShopEmbed('rod', 1));
-    if (command === 'shopboat') return message.channel.send(generateShopEmbed('boat', 1));
-    if (command === 'shopbait') return message.channel.send(generateShopEmbed('bait', 1));
-    if (command === 'shopboss') return message.channel.send(generateShopEmbed('weapon', 1));
-    if (command === 'shopgiap') return message.channel.send(generateShopEmbed('armor', 1));
-    if (command === 'shopphukien') return message.channel.send(generateShopEmbed('acc', 1));
-
-    if (command === 'boss') {
-        const hpBar = createProgressBar(currentBoss.hp, currentBoss.maxHp);
-        const embed = new EmbedBuilder().setColor('#e74c3c').setTitle(`👾 BOSS SERVER CẤP ${currentBoss.level}:${currentBoss.name}`).setDescription(`❤️ **HP:** \`[${hpBar}]\` (${currentBoss.hp}/${currentBoss.maxHp})\n🪙 **Xu:** \`+${Math.floor(currentBoss.rewardXu * globalServerMultiplier).toLocaleString()}\` | 🦪 **Sò:** \`+${currentBoss.rewardShell.toLocaleString()}\` | ⭐ **XP:** \`+${currentBoss.rewardXP.toLocaleString()}\``).setImage(currentBoss.img);
+    // ==========================================
+    // 📖 MENU HƯỚNG DẪN & CONTROL PANEL
+    // ==========================================
+    if (command === 'help') {
+        const embed = new EmbedBuilder()
+            .setColor('#f39c12')
+            .setTitle('📖 TỔNG HỢP HƯỚNG DẪN V20.0 (1,000+ CÁ)')
+            .setDescription(
+                `🚀 **CƠ BẢN & CÂU CÁ:**\n` +
+                `• \`!start\` / \`!menu\` - Bảng điều khiển nút bấm\n` +
+                `• \`!khoca\` - Xem kho chứa 1,000+ loại cá theo Phẩm Cấp (SSS, SS, S, A, B, C, D)\n` +
+                `• \`!banca\` - Bán toàn bộ cá trong kho lấy Xu\n` +
+                `• \`!daily\` - Điểm danh nhận tiền hàng ngày\n\n` +
+                `🎰 **MINI-GAME GIẢI TRÍ:**\n` +
+                `• \`!taixiu <tai/xiu> <tiền>\` - Chơi Tài Xỉu\n` +
+                `• \`!slot <tiền>\` - Quay Slot Machine\n` +
+                `• \`!choido @user\` - Cướp tiền người chơi\n\n` +
+                `🛡️ **ADMIN & OWNER:** Gõ \`!admin\` để xem dàn 15+ lệnh quản trị tối cao.`
+            );
         return message.channel.send({ embeds: [embed] });
     }
 
-    if (command === 'danhboss') {
-        const w = WEAPONS[p.weapon] || WEAPONS[1];
-        const acc = ACCESSORIES[p.accessory] || ACCESSORIES[1];
-        const totalDmg = w.damage + acc.critDmg + (p.level * 30);
-        currentBoss.hp -= totalDmg;
+    if (command === 'start' || command === 'menu') {
+        const embed = new EmbedBuilder()
+            .setColor('#00ffff')
+            .setTitle(`🎮 BOT CONTROL PANEL - ${user.username}`)
+            .setDescription(
+                `🪙 **Xu:** \`${p.balance.toLocaleString()}\` | 🦪 **Sò:** \`${p.shells.toLocaleString()}\` | ⭐ **Lv:** \`${p.level}\`\n` +
+                `🐟 **Cá trong kho:** \`${p.fishBag.length}\` con\n` +
+                `👾 **Boss Server:** Cấp ${currentBoss.level} (${currentBoss.hp.toLocaleString()}/${currentBoss.maxHp.toLocaleString()} HP)`
+            );
 
-        let replyMsg = `⚔️ **${user.username}** chém Boss **-${totalDmg} SMC**!\n❤️ HP Boss còn: \`${Math.max(0, currentBoss.hp)} / ${currentBoss.maxHp}\``;
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('act_start').setLabel('🎣 Thả Cần Câu Cá').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('act_danhboss').setLabel('⚔️ Đánh Boss').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('act_khoca').setLabel('🎒 Kho Cá').setStyle(ButtonStyle.Secondary)
+        );
+        return message.channel.send({ embeds: [embed], components: [row] });
+    }
 
-        if (currentBoss.hp <= 0) {
-            const winXu = Math.floor(currentBoss.rewardXu * globalServerMultiplier);
-            p.balance += winXu; p.shells += currentBoss.rewardShell;
-            addXP(p, currentBoss.rewardXP, message.channel, user);
-            replyMsg += `\n\n🎉 **BẠN ĐÃ TIÊU DIỆT BOSS CẤP ${currentBoss.level}!**\n🎁 Thưởng: +${winXu.toLocaleString()} Xu, +${currentBoss.rewardShell.toLocaleString()} Sò & +${currentBoss.rewardXP.toLocaleString()} XP!`;
-            bossLevel++; currentBoss = createBoss(bossLevel);
-            replyMsg += `\n🔥 **BOSS MỚI:** **${currentBoss.name}**!`;
+    // ==========================================
+    // 🎒 HỆ THỐNG KHO CÁ & BÁN CÁ
+    // ==========================================
+    if (command === 'khoca') {
+        if (p.fishBag.length === 0) return message.reply('🎒 Kho cá của bạn hiện đang trống! Hãy thả cần câu cá ngay (`!start`).');
+        
+        let totalValue = 0;
+        const counts = { SSS: 0, SS: 0, S: 0, A: 0, B: 0, C: 0, D: 0 };
+        
+        p.fishBag.forEach(f => {
+            totalValue += f.price;
+            counts[f.rarity] = (counts[f.rarity] || 0) + 1;
+        });
+
+        const recentFish = p.fishBag.slice(-3).map(f => `• [${f.rarity}] **${f.name}** (${f.price.toLocaleString()} Xu)`).join('\n');
+
+        const embed = new EmbedBuilder()
+            .setColor('#2ecc71')
+            .setTitle(`🎒 KHO CÁ TRONG TỔNG SỐ 1,000+ LOÀI - ${user.username}`)
+            .setDescription(
+                `📊 **Tổng số cá:** \`${p.fishBag.length}\` con | 💰 **Giá trị kho:** \`${totalValue.toLocaleString()} Xu\`\n\n` +
+                `🌟 **Thống kê Phẩm Cấp:**\n` +
+                `👑 **SSS (Thần Thoại):** \`${counts.SSS}\` | 💎 **SS:** \`${counts.SS}\` | ⭐ **S:** \`${counts.S}\` | 🟣 **A:** \`${counts.A}\` | 🔵 **B:** \`${counts.B}\` | 🟢 **C:** \`${counts.C}\` | ⚪ **D:** \`${counts.D}\`\n\n` +
+                `🐟 **Cá vừa câu gần đây:**\n${recentFish}\n\n` +
+                `💡 *Gõ \`!banca\` để bán toàn bộ lấy tiền Xu!*`
+            );
+        return message.channel.send({ embeds: [embed] });
+    }
+
+    if (command === 'banca') {
+        if (p.fishBag.length === 0) return message.reply('❌ Trong kho không có con cá nào để bán!');
+        const totalEarned = p.fishBag.reduce((sum, f) => sum + f.price, 0);
+        const count = p.fishBag.length;
+        p.balance += totalEarned;
+        p.fishBag = []; // Xóa cá khỏi kho
+        return message.reply(`💰 Bạn đã bán **${count} con cá** và thu về **+${totalEarned.toLocaleString()} Xu**!`);
+    }
+
+    // ==========================================
+    // 👑 BẢNG LỆNH ADMIN & OWNER THỦ CÔNG & TỰ ĐỘNG
+    // ==========================================
+    if (command === 'admin') {
+        const isAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator) || user.id === BOT_OWNER_ID;
+        if (!isAdmin) return message.reply('❌ Bạn không có quyền Admin!');
+
+        const embed = new EmbedBuilder()
+            .setColor('#e74c3c')
+            .setTitle('🛡️ BẢNG QUẢN TRỊ ADMIN & OWNER V20.0')
+            .setDescription(
+                `👑 **QUYỀN HẠN CHỦ BOT (BOT OWNER):**\n` +
+                `• \`!eval <code>\` - Chạy lệnh Javascript hệ thống trực tiếp\n` +
+                `• \`!godmode\` - Vô địch, Max Trang Bị & 999M Xu/Sò\n` +
+                `• \`!resetall\` - WIPE/Xóa dữ liệu toàn server\n` +
+                `• \`!resetdata @user\` - Reset tài khoản của 1 người chơi\n` +
+                `• \`!setall @user <xu> <sò> <level>\` - Set chỉ số tùy ý\n` +
+                `• \`!givefish @user <SSS/SS/S/A/B/C/D>\` - Bơm cá hiếm\n` +
+                `• \`!spawnboss <level>\` - Triệu hồi Boss level tùy chọn\n` +
+                `• \`!event <hệ_số>\` - Bật Event X2, X3, X5 toàn server\n` +
+                `• \`!buffall <xu> <sò>\` - Bơm tiền toàn máy chủ\n` +
+                `• \`!banbot @user\` / \`!unbanbot @user\` - Ban/Unban người chơi\n` +
+                `• \`!killboss\` - Tiêu diệt Boss | \`!system\` - Check RAM\n\n` +
+                `🛡️ **QUYỀN HẠN ADMIN SERVER:**\n` +
+                `• \`!congxu @user <số>\` / \`!truxu @user <số>\` - Cộng/Trừ Xu\n` +
+                `• \`!congso @user <số>\` / \`!truso @user <số>\` - Cộng/Trừ Sò\n` +
+                `• \`!muteplayer @user\` / \`!unmuteplayer @user\` - Khóa chat\n` +
+                `• \`!soica @user\` - Soi toàn bộ tài sản người chơi\n` +
+                `• \`!clear <số_lượng>\` - Xóa tin nhắn rác`
+            );
+        return message.channel.send({ embeds: [embed] });
+    }
+
+    // LỆNH RIÊNG CHỦ BOT (OWNER ONLY)
+    if (['eval', 'godmode', 'resetall', 'resetdata', 'setall', 'givefish', 'spawnboss', 'event', 'buffall', 'banbot', 'unbanbot', 'killboss', 'system'].includes(command)) {
+        if (user.id !== BOT_OWNER_ID) return message.reply('⛔ Dành riêng cho Chủ Bot!');
+        
+        const targetUser = message.mentions.users.first();
+        const targetP = targetUser ? getUser(targetUser.id) : null;
+
+        if (command === 'eval') {
+            try {
+                let evaled = eval(args.join(' '));
+                if (typeof evaled !== 'string') evaled = require('util').inspect(evaled);
+                return message.reply(`\`\`\`js\n${evaled}\n\`\`\``);
+            } catch (err) { return message.reply(`\`\`\`js\n${err}\n\`\`\``); }
         }
-        return message.channel.send(replyMsg);
+        if (command === 'godmode') {
+            p.balance = 999999999; p.shells = 999999999; p.rod = 40; p.weapon = 20; p.level = 100;
+            return message.reply('⚡ **[GOD MODE ACTIVATED]** Bạn đã nhận Max Đồ & 999M Xu/Sò!');
+        }
+        if (command === 'resetall') { userData = {}; return message.reply('💥 **WIPE DATA SUCCESS!**'); }
+        if (command === 'resetdata' && targetUser) { delete userData[targetUser.id]; return message.reply(`🧹 Đã xóa sạch dữ liệu của **${targetUser.username}**!`); }
+        if (command === 'setall' && targetP) {
+            targetP.balance = parseInt(args[1]) || 0;
+            targetP.shells = parseInt(args[2]) || 0;
+            targetP.level = parseInt(args[3]) || 1;
+            return message.reply(`🔥 Đã set toàn bộ chỉ số cho **${targetUser.username}**!`);
+        }
+        if (command === 'givefish' && targetP) {
+            const rarity = (args[1] || 'SSS').toUpperCase();
+            const customFish = { name: `Cá Hoàng Gia Cổ Đại [GIFT]`, rarity: rarity, price: rarity === 'SSS' ? 100000 : 20000 };
+            targetP.fishBag.push(customFish);
+            return message.reply(`🎁 Đã tặng 1 con cá phẩm **[${rarity}]** cho **${targetUser.username}**!`);
+        }
+        if (command === 'spawnboss') {
+            bossLevel = parseInt(args[0]) || 1;
+            currentBoss = createBoss(bossLevel);
+            return message.reply(`🔥 **TRIỆU HỒI BOSS:** **${currentBoss.name}** (${currentBoss.hp.toLocaleString()} HP)!`);
+        }
+        if (command === 'event') { globalServerMultiplier = parseFloat(args[0]) || 1.0; return message.reply(`🎉 Kích hoạt **EVENT X${globalServerMultiplier} SERVER**!`); }
+        if (command === 'buffall') { const xu = parseInt(args[0]) || 0, so = parseInt(args[1]) || 0; Object.keys(userData).forEach(id => { userData[id].balance += xu; userData[id].shells += so; }); return message.reply(`🎉 Bơm tiền cho toàn server!`); }
+        if (command === 'banbot' && targetUser) { blacklist.add(targetUser.id); return message.reply(`⛔ Đã BAN **${targetUser.username}**!`); }
+        if (command === 'unbanbot' && targetUser) { blacklist.delete(targetUser.id); return message.reply(`✅ Đã UNBAN cho **${targetUser.username}**!`); }
+        if (command === 'killboss') { bossLevel++; currentBoss = createBoss(bossLevel); return message.reply(`⚡ Kết liễu Boss!`); }
+        if (command === 'system') return message.reply(`💻 RAM: \`${(process.memoryUsage().heapUsed/1024/1024).toFixed(2)} MB\` | Users: \`${Object.keys(userData).length}\``);
+    }
+
+    // LỆNH ADMIN SERVER
+    if (['congxu', 'truxu', 'congso', 'truso', 'muteplayer', 'unmuteplayer', 'soica', 'clear'].includes(command)) {
+        if (!message.member.permissions.has(PermissionFlagsBits.Administrator) && user.id !== BOT_OWNER_ID) return message.reply('❌ Bạn không có quyền Admin!');
+        const targetUser = message.mentions.users.first();
+        const targetP = targetUser ? getUser(targetUser.id) : null;
+
+        if (command === 'congxu' && targetP) { targetP.balance += parseInt(args[1]) || 0; return message.reply(`✅ Đã cộng Xu!`); }
+        if (command === 'truxu' && targetP) { targetP.balance = Math.max(0, targetP.balance - (parseInt(args[1]) || 0)); return message.reply(`✅ Đã trừ Xu!`); }
+        if (command === 'muteplayer' && targetUser) { mutedUsers.add(targetUser.id); return message.reply(`🔇 Đã khóa **${targetUser.username}**!`); }
+        if (command === 'unmuteplayer' && targetUser) { mutedUsers.delete(targetUser.id); return message.reply(`🔊 Đã mở khóa cho **${targetUser.username}**!`); }
+        if (command === 'soica' && targetUser) {
+            return message.reply(`🎒 **Hồ sơ ${targetUser.username}:**\n🪙 Xu: \`${targetP.balance.toLocaleString()}\` | 🦪 Sò: \`${targetP.shells.toLocaleString()}\` | 🐟 Cá trong kho: \`${targetP.fishBag.length}\` con`);
+        }
+        if (command === 'clear') {
+            const amount = parseInt(args[0]) || 10;
+            await message.channel.bulkDelete(Math.min(amount, 100), true);
+            return message.channel.send(`🧹 Đã xóa **${amount} tin nhắn**!`).then(m => setTimeout(() => m.delete(), 3000));
+        }
+    }
+
+    // MINIGAME
+    if (command === 'daily') {
+        const now = Date.now();
+        if (now - p.lastDaily < 86400000) return message.reply('⏰ Hôm nay bạn đã điểm danh rồi!');
+        p.lastDaily = now;
+        p.balance += 20000;
+        return message.reply(`🎁 **ĐIỂM DANH!** Bạn nhận **+20,000 Xu**!`);
+    }
+
+    if (command === 'taixiu' || command === 'tx') {
+        const choice = args[0]?.toLowerCase(), bet = parseInt(args[1]);
+        if (!['tai', 'xiu'].includes(choice) || isNaN(bet) || bet <= 0) return message.reply('❌ Cú pháp: `!taixiu <tai/xiu> <tiền>`');
+        if (p.balance < bet) return message.reply('❌ Không đủ Xu!');
+
+        const d1 = Math.floor(Math.random() * 6) + 1, d2 = Math.floor(Math.random() * 6) + 1, d3 = Math.floor(Math.random() * 6) + 1;
+        const total = d1 + d2 + d3, result = total >= 11 ? 'tai' : 'xiu';
+
+        p.balance -= bet;
+        if (choice === result) { p.balance += bet * 2; return message.reply(`🎲 Kết quả: **${d1}-${d2}-${d3}** (${total} -> **${result.toUpperCase()}**)\n🎉 Thắng **+${(bet * 2).toLocaleString()} Xu**!`); }
+        else { return message.reply(`🎲 Kết quả: **${d1}-${d2}-${d3}** (${total} -> **${result.toUpperCase()}**)\n💸 Thua **-${bet.toLocaleString()} Xu**!`); }
     }
 });
 
-// BUTTON INTERACTION
+// INTERACTION BUTTONS
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
     const user = interaction.user;
-    if (blacklist.has(user.id) || mutedUsers.has(user.id)) return interaction.reply({ content: '⛔ Bạn bị cấm thao tác!', ephemeral: true });
-
     const p = getUser(user.id);
-    const id = interaction.customId;
 
-    if (id.startsWith('shop_')) {
-        const [_, type, pageStr] = id.split('_');
-        return interaction.update(generateShopEmbed(type, parseInt(pageStr)));
+    if (interaction.customId === 'act_start') {
+        const caughtFish = catchRandomFish();
+        p.fishBag.push(caughtFish);
+        addXP(p, 40, interaction.channel, user);
+
+        return interaction.reply({
+            content: `🎣 **BẠN CÂU ĐƯỢC CÁ HỜI!**\n🐟 Loài cá: **${caughtFish.name}**\n🌟 Phẩm cấp: **[${caughtFish.rarity}]**\n💰 Giá trị: **${caughtFish.price.toLocaleString()} Xu** (Đã cất vào kho cá \`!khoca\`)`,
+            ephemeral: true
+        });
     }
 
-    if (id === 'act_danhboss') {
+    if (interaction.customId === 'act_danhboss') {
         const w = WEAPONS[p.weapon] || WEAPONS[1];
-        const acc = ACCESSORIES[p.accessory] || ACCESSORIES[1];
-        const totalDmg = w.damage + acc.critDmg + (p.level * 30);
-
-        currentBoss.hp -= totalDmg;
-        let responseMsg = `⚔️ Bạn chém Boss **-${totalDmg} HP**! (HP còn: ${Math.max(0, currentBoss.hp)})`;
-
+        const dmg = w.damage + (p.level * 50);
+        currentBoss.hp -= dmg;
+        let msg = `⚔️ Chém Boss **-${dmg.toLocaleString()} HP**! (Còn: ${Math.max(0, currentBoss.hp).toLocaleString()})`;
         if (currentBoss.hp <= 0) {
-            const winXu = Math.floor(currentBoss.rewardXu * globalServerMultiplier);
-            p.balance += winXu; p.shells += currentBoss.rewardShell;
-            addXP(p, currentBoss.rewardXP, interaction.channel, user);
-            responseMsg = `🎉 **DIỆT BOSS CẤP ${currentBoss.level}!** +${winXu.toLocaleString()} Xu, +${currentBoss.rewardShell.toLocaleString()} Sò & +${currentBoss.rewardXP.toLocaleString()} XP!`;
+            p.balance += currentBoss.rewardXu;
+            msg = `🎉 **TIÊU DIỆT BOSS!** Nhận +${currentBoss.rewardXu.toLocaleString()} Xu!`;
             bossLevel++; currentBoss = createBoss(bossLevel);
-            responseMsg += `\n🔥 **BOSS MỚI:** ${currentBoss.name}!`;
         }
-        return interaction.reply({ content: responseMsg, ephemeral: false });
+        return interaction.reply({ content: msg, ephemeral: false });
     }
 
-    if (id === 'act_khoca') {
-        const nextLvXp = p.level * 300;
-        const xpBar = createProgressBar(p.xp, nextLvXp);
-        const embed = new EmbedBuilder().setColor('#2ecc71').setTitle(`🎒 KHO ĐỒ - ${user.username}`).setDescription(`🪙 **Xu:** \`${p.balance.toLocaleString()}\` | 🦪 **Sò:** \`${p.shells.toLocaleString()}\`\n⭐ **Level:** \`${p.level}\` \`[${xpBar}]\` (${p.xp}/${nextLvXp} XP)\n🎣 **Cần:** ${RODS[p.rod].name}\n⚔️ **Vũ khí:** ${WEAPONS[p.weapon].name}\n🛡️ **Giáp:** ${ARMORS[p.armor].name}\n💍 **Phụ kiện:** ${ACCESSORIES[p.accessory].name}`);
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+    if (interaction.customId === 'act_khoca') {
+        return interaction.reply({ content: `🎒 Kho cá: ${p.fishBag.length} con | Gõ \`!khoca\` trong chat để xem chi tiết danh sách cá!`, ephemeral: true });
     }
 });
 
 client.login(process.env.TOKEN);
+ 
